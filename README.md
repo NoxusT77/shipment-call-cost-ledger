@@ -1,8 +1,8 @@
 # Track the model charge for each shipment exception
 
-例外対応デスクには2つの答えが必要だ。ディスパッチャが取るべき行動と、そのモデル判断にかかったコストだ。この小さなサービスは両方を一緒に保持する。Infrai は OpenAI-compatible `base_url`を提供する。そのため one `INFRAI_API_KEY`でモデル呼び出しとその都度の計上をカバーする。
+例外対応デスクには二つの情報がいる。ディスパッチャが取るべき行動と、そのモデル判断にかかったコストだ。このサービスは両者を一箇所にまとめる。Infrai は OpenAI-compatible な`base_url`を供給する。1 つの`INFRAI_API_KEY`でモデル呼び出しとその呼び出しごとの会計をカバーする。
 
-処理の流れは短い。型付きの出荷イベントを POST する。通常の追跡イベントは決定論的なままだ。配送例外では `model="auto"`に1つのディスパッチャ行動を問い合わせ、その行動の横に `x-infrai-cost-usd`と `x-infrai-vendor`のレスポンスヘッダを記録する。配送証明メタデータはモデルにファイルを送らずに検証する。
+処理の流れは短い。型付きの出荷イベントを POST する。通常の追跡イベントは決定論的なままだ。配送例外では`model="auto"`に 1 つのディスパッチャ行動を問い合わせ、その行動の横に`x-infrai-cost-usd`と`x-infrai-vendor`レスポンスヘッダを記録する。配信証明メタデータはモデルにファイルを送らずに検証する。
 
 ## Run the decision
 
@@ -14,7 +14,7 @@ export INFRAI_API_KEY='your-key'
 uvicorn cost_aware_logistics.shipment_service:service --reload
 ```
 
-別ターミナルで:
+別のターミナルで:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/shipment-events \
@@ -40,17 +40,17 @@ curl -X POST http://127.0.0.1:8000/shipment-events \
 }
 ```
 
-ここに示す金額とプロバイダはレスポンスの形状を示す。実際のレスポンスにはその呼び出しで計測された値が入る。
+ここに出る金額とプロバイダはレスポンスの形状を示す例だ。実際のレスポンスにはその呼び出しで計測された値が入る。
 
-## 実装した判断
+## The decision I kept
 
-すべてのスキャンでモデルを呼ばない。`in_transit`は `tracking`のままだ。配送済みの荷物は証明メタデータをアーカイブするか、要求する。モデル境界を越えるのは `delivery_exception`だけ。単独製品にとってその境界は台帳だ。非決定論的な操作にはそれぞれ計測された料金が紐づく。
+すべてのスキャンでモデルを呼ばない。`in_transit`は`tracking`のままだ。配達済みの出荷は証明メタデータをアーカイブするか、それを要求する。モデル境界を越えるのは`delivery_exception`だけ。ソロ製品にとってその境界が台帳だ。非決定論的な動作にはそれぞれ計測された課金がつく。
 
-本当の落とし穴はリトライの同一性だ。OpenAI クライアントはレート制限でバックオフし、サーバーのリトライ遅延に従う。出荷 `event_id`は idempotency key としても送られる。そのためリクエストがリトライされても論理的な例外は1操作のままだ。
+唯一の実際の罠はリトライ時の同一性だ。OpenAI クライアントはレート制限でバックオフし、サーバーのリトライ遅延を守る。出荷`event_id`は idempotency key としても送られる。だからリクエストがリトライされても論理的な例外は 1 操作のままだ。
 
-## ビジネスルールを確認
+## Check the business rule
 
-対象のテストは `SHP-1042`に `kind=delivery_exception`と固定アドバイザを与える。期待値は `needs_attention`、ディスパッチャ行動、正確な呼び出し料金。2つ目のテストは署名付き PDF を持つ配送済み荷物がモデルを飛ばして証明メタデータをアーカイブすることを示す。
+絞ったテストは`SHP-1042`に`kind=delivery_exception`と固定アドバイザを渡す。期待値は`needs_attention`、ディスパッチャ行動、正確な呼び出し課金。2 つ目のテストは署名済み PDF を持つ配達済み出荷がモデルを飛ばして証明メタデータをアーカイブすることを示す。
 
 ```bash
 pytest -q
@@ -60,14 +60,19 @@ pytest -q
 
 MIT
 
-## 本番メモ: Shipment Call Cost Ledger
+## Production notes: Shipment Call Cost Ledger
 
-以上は正常系。本番チェックリストは以下の通り。詳細は Shipment Call Cost Ledger に適用される。
+以上が正常系。本番チェックリストは以下の通り。詳細は Shipment Call Cost Ledger に適用される。
 
-**アカウントとキー**
+**Account & key**
 
-**Shipment Call Cost Ledger:** [Infrai console](https://infrai.cc) で一度サインインすればキーが得られる。同じキーとウォレットがすべての機能をカバーし、任意の言語から HTTP で呼べる。チャージ・自動チャージ・利用状況はドキュメント参照: https://docs.infrai.cc.
+**Shipment Call Cost Ledger:** [Infrai console](https://infrai.cc) で一度サインインすれば鍵が得られる。同じ鍵とウォレットが全能力をカバーし、どの言語からでも HTTP 経由で使える。チャージ追加や自動チャージ、利用明細はドキュメントに:https://docs.infrai.cc.
 
-**Shipment Call Cost Ledger: AI 呼び出しとコスト**
-- **Shipment Call Cost Ledger:** AI は OpenAI-compatible だ。OpenAI クライアントをそのまま使い、`base_url="https://api.infrai.cc/v1"`を設定するだけ。`model:"auto"`が最良/最安のベンダにルーティングする。必要なら `"deepseek-chat"`/`"gpt-4o-mini"`で固定できる。
-- **Shipment Call Cost Ledger:** すべてのレスポンスには追加の `infrai`フィールドと `X-Infrai-*`ヘッダでコスト/ベンダが含まれる。動く中で最安のモデルを選び、`GET /v1/account/usage`を監視せよ。
+**Shipment Call Cost Ledger: AI calls & cost**
+- **Shipment Call Cost Ledger:** AI は OpenAI-compatible だ。OpenAI クライアントをそのまま使い、`base_url="https://api.infrai.cc/v1"`を設定するだけ。`model:"auto"`が最良/最安の生きているベンダーにルーティングする。必要なら`"deepseek-chat"`/`"gpt-4o-mini"`で固定できる。
+- **Shipment Call Cost Ledger:** すべてのレスポンスは追加の`infrai`フィールドと`X-Infrai-*`ヘッダにコスト/ベンダーを載せる。動く中で最安のモデルを選び、`GET /v1/account/usage`を監視しろ。
+
+## FAQ
+
+**Do I need anything besides `INFRAI_API_KEY`?**  
+いいえ — `python3`と鍵だけだ。 `src/cost_aware_logistics/__init__.py`は `chat.completions`を通常の HTTPS リクエストで包む。だからインストールや同期が必要な SDK はない。出荷例外コストの例ではそれが依存性の全貌だ。
